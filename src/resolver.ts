@@ -28,6 +28,15 @@ interface ResolvedInfo {
   dependencies?: DenoDependency[];
 }
 
+interface AssertedResolvedInfo {
+  kind: "asserted";
+  local?: string;
+  size: number;
+  mediaType: DenoMediaType;
+  specifier: string;
+  dependencies?: DenoDependency[];
+}
+
 interface NpmResolvedInfo {
   kind: "npm";
   specifier: string;
@@ -48,7 +57,13 @@ interface DenoInfoJsonV1 {
   version: 1;
   redirects: Record<string, string>;
   roots: string[];
-  modules: Array<NpmResolvedInfo | ResolvedInfo | ExternalResolvedInfo | ResolveError>;
+  modules: Array<
+    | NpmResolvedInfo
+    | ResolvedInfo
+    | AssertedResolvedInfo
+    | ExternalResolvedInfo
+    | ResolveError
+  >;
 }
 
 export interface DenoResolveResult {
@@ -59,7 +74,12 @@ export interface DenoResolveResult {
 }
 
 function isResolveError(
-  info: NpmResolvedInfo | ResolvedInfo | ExternalResolvedInfo | ResolveError,
+  info:
+    | NpmResolvedInfo
+    | ResolvedInfo
+    | AssertedResolvedInfo
+    | ExternalResolvedInfo
+    | ResolveError,
 ): info is ResolveError {
   return "error" in info && typeof info.error === "string";
 }
@@ -119,7 +139,7 @@ export async function resolveDeno(
     return null;
   }
 
-  if (mod.kind === "esm") {
+  if (mod.kind === "esm" || mod.kind === "asserted") {
     return {
       id: mod.local ?? mod.specifier,
       kind: "esm",
