@@ -11,19 +11,21 @@ export type DenoMediaType =
   | "JSX"
   | "Json";
 
+interface DenoDependency {
+  specifier: string;
+  code?: {
+    specifier: string;
+    span: { start: unknown; end: unknown };
+  };
+}
+
 interface ResolvedInfo {
   kind: "esm";
-  local: string;
+  local?: string;
   size: number;
   mediaType: DenoMediaType;
   specifier: string;
-  dependencies: Array<{
-    specifier: string;
-    code: {
-      specifier: string;
-      span: { start: unknown; end: unknown };
-    };
-  }>;
+  dependencies?: DenoDependency[];
 }
 
 interface NpmResolvedInfo {
@@ -46,16 +48,14 @@ interface DenoInfoJsonV1 {
   version: 1;
   redirects: Record<string, string>;
   roots: string[];
-  modules: Array<
-    NpmResolvedInfo | ResolvedInfo | ExternalResolvedInfo | ResolveError
-  >;
+  modules: Array<NpmResolvedInfo | ResolvedInfo | ExternalResolvedInfo | ResolveError>;
 }
 
 export interface DenoResolveResult {
   id: string;
   kind: "esm" | "npm";
   loader: DenoMediaType | null;
-  dependencies: ResolvedInfo["dependencies"];
+  dependencies: DenoDependency[];
 }
 
 function isResolveError(
@@ -121,10 +121,10 @@ export async function resolveDeno(
 
   if (mod.kind === "esm") {
     return {
-      id: mod.local,
-      kind: mod.kind,
+      id: mod.local ?? mod.specifier,
+      kind: "esm",
       loader: mod.mediaType,
-      dependencies: mod.dependencies,
+      dependencies: mod.dependencies ?? [],
     };
   } else if (mod.kind === "npm") {
     return {
@@ -169,7 +169,7 @@ export async function resolveViteSpecifier(
     if (found === undefined) return;
 
     // Check if we need to continue resolution
-    id = found.code.specifier;
+    id = found.code?.specifier ?? found.specifier;
     if (id.startsWith("file://")) {
       return fileURLToPath(id);
     }
@@ -185,6 +185,12 @@ export async function resolveViteSpecifier(
   }
 
   cache.set(resolved.id, resolved);
+
+  // Non-file specifiers such as `data:` have no local cache path,
+  // so force them through the plugin's `load` hook.
+  if (!path.isAbsolute(resolved.id)) {
+    return toDenoSpecifier(resolved.loader, id, resolved.id);
+  }
 
   // Vite can load this
   if (
@@ -220,10 +226,10 @@ export function parseDenoSpecifier(spec: DenoSpecifierName): {
 } {
   const [_, loader, id, posixPath] = spec.split("::") as [
     string,
-    string,
     DenoMediaType,
+    string,
     string,
   ];
   const resolved = path.normalize(posixPath);
-  return { loader: loader as DenoMediaType, id, resolved };
+  return { loader, id, resolved };
 }

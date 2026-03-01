@@ -33,7 +33,9 @@ export default function denoPlugin(
 
       const { loader, resolved } = parseDenoSpecifier(id);
 
-      const content = await fsp.readFile(resolved, "utf-8");
+      const content = resolved.startsWith("data:")
+        ? await readDataUrl(resolved)
+        : await fsp.readFile(resolved, "utf-8");
       if (loader === "JavaScript") return content;
       if (loader === "Json") {
         return `export default ${content}`;
@@ -72,4 +74,12 @@ function mediaTypeToLoader(media: DenoMediaType): Loader {
     case "TypeScript":
       return "ts";
   }
+}
+
+async function readDataUrl(url: string): Promise<string> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to load data URL: ${response.statusText}`);
+  }
+  return await response.text();
 }

@@ -42,6 +42,10 @@ describe("Deno plugin", () => {
     it("resolves http:", async () => {
       await runTest(`importMapHttp.js`);
     });
+
+    it("resolves data:", async () => {
+      await runTest(`importMapData.js`);
+    });
   });
 
   describe("inline", () => {
